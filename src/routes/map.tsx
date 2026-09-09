@@ -90,9 +90,9 @@ function MapPage() {
   const onMapReady = useCallback((m: L.Map) => setMapRef(m), []);
 
   return (
-    <div className="flex h-dvh flex-col">
-      {/* MAP — top 50% */}
-      <section className="relative h-[50dvh] shrink-0 overflow-hidden" aria-label="Interactive weather map">
+    <div className="flex flex-col lg:flex-row h-full lg:h-[calc(100vh-5.5rem)] gap-4 py-3">
+      {/* MAP — top 50% on mobile, full-height main canvas on desktop */}
+      <section className="relative h-[50dvh] lg:h-full lg:flex-1 shrink-0 lg:shrink rounded-3xl overflow-hidden shadow-card border border-border/70" aria-label="Interactive weather map">
         <ClientOnly fallback={<MapSkeleton />}>
           <Suspense fallback={<MapSkeleton />}>
             <LeafletMap layer={layer} selectedId={selectedId} onSelect={(id) => select(id)} flyTarget={flyTarget} onMapReady={onMapReady} />
@@ -210,12 +210,12 @@ function MapPage() {
         </div>
       </section>
 
-      {/* DETAILS — bottom 50%, scrollable */}
-      <section key={city.id} className="relative flex-1 overflow-y-auto rounded-t-[1.8rem] bg-background shadow-[0_-12px_30px_-20px_oklch(0.3_0.1_255/0.5)]" aria-live="polite">
-        <div className="sticky top-0 z-10 flex justify-center bg-background/90 pb-1 pt-2 backdrop-blur">
+      {/* DETAILS — bottom 50% on mobile, dedicated 420px workstation sidebar on desktop */}
+      <section key={city.id} className="relative flex-1 lg:w-[420px] lg:flex-none overflow-y-auto rounded-3xl bg-card border border-border/70 p-4 sm:p-5 shadow-card" aria-live="polite">
+        <div className="sticky top-0 z-10 lg:hidden flex justify-center bg-card/90 pb-1 pt-1 backdrop-blur">
           <span className="h-1 w-10 rounded-full bg-border" />
         </div>
-        <div className="space-y-4 px-4 pb-28 animate-fade-in">
+        <div className="space-y-4 pb-12 lg:pb-4 animate-fade-in">
           {/* Selected location header */}
           <div className="flex items-start justify-between">
             <div>
