@@ -1,0 +1,48 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: "zulu"
+          java-version: "17"
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Build Web Application
+        run: bun run build
+
+      - name: Setup Capacitor & Android Project
+        run: |
+          bun add @capacitor/core @capacitor/android
+          bun add -D @capacitor/cli
+          bunx cap init "Mausam Insight" "com.mausam.insight" --web-dir dist
+          bunx cap add android
+
+      - name: Build Debug APK with Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mausam-insight-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
