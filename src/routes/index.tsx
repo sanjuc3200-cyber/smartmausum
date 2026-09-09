@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   MapPin,
   Sparkles,
@@ -14,8 +14,11 @@ import {
   ChevronRight,
   Bell,
   Sprout,
+  RefreshCw,
+  Sun,
+  ShieldAlert,
 } from "lucide-react";
-import { usePrefs } from "@/lib/prefs";
+import { usePrefs, formatTemp, formatTempValue } from "@/lib/prefs";
 import { getApiStatus } from "@/lib/weather-api";
 import { rankCards, personaLabel, type CardId } from "@/lib/personalization";
 import {
@@ -30,6 +33,7 @@ import {
 } from "@/lib/weather-data";
 import { WeatherIcon, heroGradientFor } from "@/components/WeatherIcon";
 import { AlertCard, DailyList, HourlyStrip, SectionTitle, StatTile, TrustNote } from "@/components/weather/Widgets";
+import { CitySearchModal } from "@/components/weather/CitySearchModal";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -51,13 +55,11 @@ function greeting() {
 }
 
 function HomePage() {
-  const { prefs, hydrated } = usePrefs();
+  const { prefs, hydrated, update } = usePrefs();
   const apiStatus = getApiStatus();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    if (hydrated && !prefs.onboarded) navigate({ to: "/onboarding" });
-  }, [hydrated, prefs.onboarded, navigate]);
+  const [cityModalOpen, setCityModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const city = getCity(prefs.cityId);
   const dest = getCity(prefs.destinationId);
@@ -70,6 +72,13 @@ function HomePage() {
   const hero = heroGradientFor(city.condition);
   const nextRain = hourly.find((h) => h.rainProb >= 60);
 
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setIsRefreshing(false);
+    }, 600);
+  };
+
   const renderCard = (id: CardId, reason: string) => {
     switch (id) {
       case "alerts":
@@ -79,7 +88,15 @@ function HomePage() {
               {cityAlerts.length > 0 ? (
                 cityAlerts.map((a) => <AlertCard key={a.id} alert={a} cityName={city.name} />)
               ) : (
-                <p className="rounded-2xl bg-level-normal-soft p-3 text-[12px] font-semibold text-level-normal">No warning for {city.name}. All clear.</p>
+                <div className="flex items-center gap-3 rounded-2xl bg-level-normal-soft/80 p-3.5 text-[12px] font-semibold text-level-normal border border-level-normal/20">
+                  <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-level-normal/15">
+                    ✓
+                  </span>
+                  <div>
+                    <p className="font-bold text-foreground">No active warnings for {city.name}</p>
+                    <p className="text-[11px] text-muted-foreground font-normal">Atmospheric parameters within normal thresholds.</p>
+                  </div>
+                </div>
               )}
               {globalAlerts.map((a) => (
                 <AlertCard key={a.id} alert={a} cityName={getCity(a.cityId).name} compact />
@@ -117,7 +134,7 @@ function HomePage() {
         );
       case "hourly":
         return (
-          <Card key={id} title="Hourly forecast" hint={reason} to="/forecast">
+          <Card key={id} title="Hourly forecast" hint={reason} to="/forecast" className="md:col-span-2">
             <HourlyStrip hours={hourly} compact />
           </Card>
         );
@@ -133,19 +150,19 @@ function HomePage() {
             <div className="flex items-center gap-3">
               <div className="flex-1 rounded-2xl bg-secondary/70 p-3">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">From</p>
-                <p className="text-[13px] font-bold">{city.name}</p>
+                <p className="text-[13px] font-bold truncate">{city.name}</p>
                 <div className="mt-1 flex items-center gap-1.5">
                   <WeatherIcon condition={city.condition} className="h-4 w-4" />
-                  <span className="font-display text-base font-bold">{city.temp}°</span>
+                  <span className="font-display text-base font-bold">{formatTemp(city.temp, prefs.tempUnit)}</span>
                 </div>
               </div>
-              <Plane className="h-5 w-5 text-primary" />
+              <Plane className="h-5 w-5 text-primary shrink-0" />
               <div className="flex-1 rounded-2xl bg-primary/8 p-3 ring-1 ring-primary/15">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-primary">To</p>
-                <p className="text-[13px] font-bold">{dest.name}</p>
+                <p className="text-[13px] font-bold truncate">{dest.name}</p>
                 <div className="mt-1 flex items-center gap-1.5">
                   <WeatherIcon condition={dest.condition} className="h-4 w-4" />
-                  <span className="font-display text-base font-bold">{dest.temp}°</span>
+                  <span className="font-display text-base font-bold">{formatTemp(dest.temp, prefs.tempUnit)}</span>
                 </div>
               </div>
             </div>
@@ -170,7 +187,7 @@ function HomePage() {
         );
       case "temperature":
         return (
-          <StatTile key={id} icon={<Thermometer className="h-3.5 w-3.5" />} label="Temperature" value={`${daily[0]?.lo}° / ${daily[0]?.hi}°`} sub={`Feels like ${city.feels}° now`} tone="sun" />
+          <StatTile key={id} icon={<Thermometer className="h-3.5 w-3.5" />} label="Temperature" value={`${formatTemp(daily[0]?.lo ?? city.temp - 3, prefs.tempUnit)} / ${formatTemp(daily[0]?.hi ?? city.temp + 4, prefs.tempUnit)}`} sub={`Feels like ${formatTemp(city.feels, prefs.tempUnit)} now`} tone="sun" />
         );
       case "aqi":
         return (
@@ -178,9 +195,25 @@ function HomePage() {
         );
       case "sun":
         return (
-          <div key={id} className="card-surface flex items-center justify-between p-3.5">
-            <div className="flex items-center gap-2"><Sunrise className="h-4 w-4 text-sun" /><span><span className="block text-[10.5px] text-muted-foreground">Sunrise</span><span className="font-display text-sm font-bold">{city.sunrise}</span></span></div>
-            <div className="flex items-center gap-2"><Sunset className="h-4 w-4 text-level-severe" /><span><span className="block text-[10.5px] text-muted-foreground">Sunset</span><span className="font-display text-sm font-bold">{city.sunset}</span></span></div>
+          <div key={id} className="card-surface flex items-center justify-between p-4 hover:border-primary/30 transition-all shadow-card">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-sun/20 text-sun">
+                <Sunrise className="h-4 w-4" />
+              </span>
+              <span>
+                <span className="block text-[10.5px] text-muted-foreground">Sunrise</span>
+                <span className="font-display text-sm font-bold">{city.sunrise}</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-level-severe/15 text-level-severe">
+                <Sunset className="h-4 w-4" />
+              </span>
+              <span>
+                <span className="block text-[10.5px] text-muted-foreground">Sunset</span>
+                <span className="font-display text-sm font-bold">{city.sunset}</span>
+              </span>
+            </div>
           </div>
         );
       case "agri":
@@ -209,7 +242,7 @@ function HomePage() {
   let buffer: React.ReactNode[] = [];
   const flush = () => {
     if (buffer.length) {
-      blocks.push(<div key={"grid" + blocks.length} className="grid grid-cols-2 gap-2.5">{buffer}</div>);
+      blocks.push(<div key={"grid" + blocks.length} className="grid grid-cols-2 gap-2.5 md:col-span-1">{buffer}</div>);
       buffer = [];
     }
   };
@@ -226,30 +259,64 @@ function HomePage() {
 
   return (
     <div className="page-gradient min-h-dvh">
-      {/* HERO */}
-      <header className={`${hero} relative overflow-hidden rounded-b-[2rem] px-5 pb-6 pt-[max(env(safe-area-inset-top),1rem)] text-on-hero shadow-float`}>
-        <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-on-hero/10 blur-2xl" />
-        <div className="pointer-events-none absolute -left-10 bottom-0 h-40 w-40 rounded-full bg-on-hero/10 blur-2xl" />
+      {/* HERO SECTION: Responsive dynamic atmospheric card */}
+      <header className={`${hero} relative overflow-hidden rounded-b-[2.5rem] md:rounded-[2.5rem] md:m-4 px-5 md:px-8 pb-7 pt-[max(env(safe-area-inset-top),1.2rem)] md:pt-8 text-on-hero shadow-float transition-all`}>
+        {/* Ambient atmospheric lighting orbs */}
+        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-on-hero/15 blur-3xl animate-pulse" />
+        <div className="pointer-events-none absolute -left-12 bottom-0 h-48 w-48 rounded-full bg-on-hero/10 blur-2xl" />
 
-        <div className="relative flex items-center justify-between">
+        {/* Top Header Bar inside Hero */}
+        <div className="relative flex items-center justify-between gap-2">
           <div>
             <p className="text-[12px] font-medium text-on-hero-muted flex items-center gap-1.5">
               {greeting()}{prefs.name ? `, ${prefs.name}` : ""} 👋
-              <span className="inline-flex items-center rounded-full bg-on-hero/15 px-1.5 py-0.2 text-[9px] font-bold text-on-hero">
+              <span className="inline-flex items-center rounded-full bg-on-hero/15 px-2 py-0.5 text-[9.5px] font-bold text-on-hero">
                 {apiStatus.isLive ? "🟢 Live API" : "⚡ IMD Shield"}
               </span>
             </p>
-            <Link to="/profile" className="mt-0.5 flex items-center gap-1 text-[15px] font-bold">
-              <MapPin className="h-4 w-4" /> {city.name}, {city.state}
-              <ChevronRight className="h-3.5 w-3.5 opacity-70" />
-            </Link>
+
+            {/* Clickable City Switcher Button */}
+            <button
+              onClick={() => setCityModalOpen(true)}
+              className="group mt-1 flex items-center gap-1.5 rounded-full bg-on-hero/15 hover:bg-on-hero/25 px-3.5 py-1 text-[13.5px] font-bold text-on-hero transition-all border border-on-hero/20 hover:scale-[1.02] shadow-xs"
+              title="Click to change city"
+            >
+              <MapPin className="h-3.5 w-3.5 text-on-hero" />
+              <span>{city.name}, {city.state}</span>
+              <span className="ml-1 text-[9.5px] bg-on-hero/25 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold group-hover:bg-on-hero/35 transition-colors">
+                Change ▾
+              </span>
+            </button>
           </div>
+
           <div className="flex items-center gap-2">
-            <Link to="/alerts" aria-label="Alerts" className="glass relative flex h-10 w-10 items-center justify-center rounded-full hover:bg-on-hero/20 transition-colors">
+            {/* Quick Refresh Weather Button */}
+            <button
+              onClick={handleRefresh}
+              aria-label="Refresh weather"
+              title="Refresh weather data"
+              className="glass flex h-10 w-10 items-center justify-center rounded-full hover:bg-on-hero/20 transition-all active:scale-95"
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            </button>
+
+            {/* Alerts Bell */}
+            <Link
+              to="/alerts"
+              aria-label="Alerts"
+              className="glass relative flex h-10 w-10 items-center justify-center rounded-full hover:bg-on-hero/20 transition-colors"
+            >
               <Bell className="h-4.5 w-4.5" />
-              {cityAlerts.length > 0 && <span className={`absolute right-2 top-2 h-2 w-2 rounded-full ${LEVEL_META[cityAlerts[0]!.level].color} ring-2 ring-primary-deep/40 animate-pulse`} />}
+              {cityAlerts.length > 0 && (
+                <span className={`absolute right-2 top-2 h-2.5 w-2.5 rounded-full ${LEVEL_META[cityAlerts[0]!.level].color} ring-2 ring-card animate-pulse`} />
+              )}
             </Link>
-            <Link to="/profile" className="glass flex h-10 items-center rounded-full pl-1.5 pr-3 text-[11px] font-bold hover:bg-on-hero/20 transition-all press">
+
+            {/* Persona Quick Pill */}
+            <Link
+              to="/profile"
+              className="glass hidden sm:flex h-10 items-center rounded-full pl-1.5 pr-3 text-[11px] font-bold hover:bg-on-hero/20 transition-all press"
+            >
               <span className="mr-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-on-hero/90 text-[12px] shadow-xs">
                 {prefs.persona === "student" ? "🎒" : prefs.persona === "farmer" ? "🌾" : prefs.persona === "traveller" ? "✈️" : "🏠"}
               </span>
@@ -258,94 +325,155 @@ function HomePage() {
           </div>
         </div>
 
-        <div className="relative mt-6 flex items-end justify-between">
-          <div>
-            <div className="flex items-start">
-              <span className="font-display text-[84px] font-extrabold leading-[0.85] tracking-tighter">{city.temp}</span>
-              <span className="mt-2 font-display text-3xl font-bold">°C</span>
-            </div>
-            <p className="mt-2 text-[15px] font-semibold">{CONDITION_LABEL[city.condition]}</p>
-            <p className="text-[12px] text-on-hero-muted">
-              Feels like {city.feels}° · H {daily[0]?.hi}° L {daily[0]?.lo}°
-            </p>
-          </div>
-          <div className="animate-float">
-            <WeatherIcon condition={city.condition} className="h-24 w-24 text-on-hero drop-shadow-[0_10px_20px_rgba(0,0,0,0.25)]" inherit />
-          </div>
-        </div>
-
-        <div className="glass relative mt-5 rounded-2xl p-3.5">
-          <p className="text-[10.5px] font-bold uppercase tracking-wider text-on-hero-muted">Today's summary</p>
-          <p className="mt-1 text-[13px] font-medium leading-snug">{city.summary}</p>
-          <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-            {[
-              { i: CloudRain, l: "Rain", v: `${city.rainProb}%` },
-              { i: Droplets, l: "Humidity", v: `${city.humidity}%` },
-              { i: Wind, l: "Wind", v: `${city.wind}` },
-              { i: Leaf, l: "AQI", v: `${city.aqi}` },
-            ].map((s) => (
-              <div key={s.l} className="rounded-xl bg-on-hero/10 py-2">
-                <s.i className="mx-auto h-3.5 w-3.5 text-on-hero-muted" />
-                <p className="mt-1 font-display text-[13.5px] font-bold">{s.v}</p>
-                <p className="text-[9.5px] text-on-hero-muted">{s.l}</p>
+        {/* Responsive Hero Body: Stacked on mobile, 2-column dashboard on desktop */}
+        <div className="relative mt-6 md:mt-8 grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+          {/* Main Temperature & Animated Weather Icon */}
+          <div className="md:col-span-6 flex items-end justify-between">
+            <div>
+              <div className="flex items-start gap-1">
+                <span className="font-display text-[84px] md:text-[92px] font-extrabold leading-[0.82] tracking-tighter">
+                  {formatTempValue(city.temp, prefs.tempUnit)}
+                </span>
+                <div className="mt-1 flex flex-col items-start gap-1">
+                  <button
+                    onClick={() => update({ tempUnit: prefs.tempUnit === "C" ? "F" : "C" })}
+                    title={`Switch to °${prefs.tempUnit === "C" ? "F" : "C"}`}
+                    className="rounded-xl bg-on-hero/20 hover:bg-on-hero/35 px-2.5 py-1 font-display text-xs font-bold tracking-tight text-on-hero transition-all border border-on-hero/25 active:scale-95 shadow-xs"
+                  >
+                    °{prefs.tempUnit} ⇄
+                  </button>
+                </div>
               </div>
-            ))}
+
+              <p className="mt-2.5 text-base md:text-lg font-bold flex items-center gap-2">
+                <span>{CONDITION_LABEL[city.condition]}</span>
+                {city.alertLevel !== "normal" && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-on-hero/25 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide">
+                    <ShieldAlert className="h-3 w-3" /> {city.alertLevel}
+                  </span>
+                )}
+              </p>
+
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[12px] text-on-hero-muted font-medium">
+                <span>Feels like {formatTemp(city.feels, prefs.tempUnit)}</span>
+                <span>·</span>
+                <span className="flex items-center gap-1 font-semibold text-on-hero">
+                  <span className="text-sun">↑</span> H {formatTemp(daily[0]?.hi ?? city.temp + 4, prefs.tempUnit)}
+                  <span className="text-primary-glow">↓</span> L {formatTemp(daily[0]?.lo ?? city.temp - 3, prefs.tempUnit)}
+                </span>
+              </div>
+            </div>
+
+            <div className="animate-float shrink-0">
+              <WeatherIcon condition={city.condition} className="h-24 w-24 md:h-32 md:w-32 text-on-hero drop-shadow-[0_12px_24px_rgba(0,0,0,0.3)]" inherit />
+            </div>
+          </div>
+
+          {/* Today's Summary Glass Card (Right column on desktop) */}
+          <div className="md:col-span-6 glass relative rounded-3xl p-4 md:p-5 shadow-lg">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-on-hero-muted">Today's Outlook</p>
+              <span className="text-[11px] text-on-hero-muted font-semibold">{city.name} Station</span>
+            </div>
+            <p className="mt-1.5 text-[13px] md:text-[13.5px] font-medium leading-snug">{city.summary}</p>
+
+            <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+              {[
+                { i: CloudRain, l: "Rain", v: `${city.rainProb}%` },
+                { i: Droplets, l: "Humidity", v: `${city.humidity}%` },
+                { i: Wind, l: "Wind", v: `${city.wind} km/h` },
+                { i: Leaf, l: "AQI", v: `${city.aqi}` },
+              ].map((s) => (
+                <div key={s.l} className="rounded-2xl bg-on-hero/12 py-2.5 px-1 border border-on-hero/10">
+                  <s.i className="mx-auto h-3.5 w-3.5 text-on-hero-muted" />
+                  <p className="mt-1 font-display text-[13.5px] font-bold leading-tight">{s.v}</p>
+                  <p className="text-[9.5px] text-on-hero-muted font-semibold mt-0.5">{s.l}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Personalized indicator */}
-      <div className="flex items-center justify-between px-5 pt-5">
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Sparkles className="h-3.5 w-3.5" />
+      {/* Personalized Indicator */}
+      <div className="flex items-center justify-between px-5 pt-5 max-w-6xl mx-auto">
+        <div className="flex items-center gap-2.5">
+          <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Sparkles className="h-4 w-4" />
             <span className="absolute inset-0 rounded-full bg-primary/30 animate-pulse-ring" />
           </span>
           <div>
-            <p className="text-[12.5px] font-bold">Personalized for you</p>
-            <p className="text-[10.5px] text-muted-foreground">
-              {personaLabel(prefs.persona)} · {prefs.interests.length} interests · {cards.length - 1} cards ranked
+            <p className="text-[13px] font-bold text-foreground">Personalized for you</p>
+            <p className="text-[11px] text-muted-foreground">
+              {personaLabel(prefs.persona)} · {prefs.interests.length} interests · {cards.length - 1} priority cards
             </p>
           </div>
         </div>
-        <Link to="/profile" className="press rounded-full bg-secondary px-3 py-1.5 text-[11px] font-bold text-primary">
-          Tune
+        <Link to="/profile" className="press rounded-full bg-secondary hover:bg-secondary/80 px-3.5 py-1.5 text-[11.5px] font-bold text-primary transition-all">
+          Customize
         </Link>
       </div>
 
-      {/* Ranked cards - responsive grid on desktop, single column on mobile */}
-      <div key={prefs.persona + prefs.interests.join() + prefs.cityId} className="stagger space-y-3.5 md:space-y-0 md:grid md:grid-cols-2 md:gap-4 px-4 pt-3.5">
+      {/* Ranked Cards: Responsive grid on desktop, single column on mobile */}
+      <div
+        key={prefs.persona + prefs.interests.join() + prefs.cityId + prefs.tempUnit}
+        className="stagger space-y-3.5 md:space-y-0 md:grid md:grid-cols-2 md:gap-4.5 px-4 pt-3.5 max-w-6xl mx-auto"
+      >
         {blocks}
       </div>
 
-      {/* Quick access */}
-      <div className="px-4 pt-5">
-        <SectionTitle title="Quick access" />
-        <div className="grid grid-cols-4 gap-2">
+      {/* Quick Access Grid */}
+      <div className="px-4 pt-6 max-w-6xl mx-auto">
+        <SectionTitle title="Quick Explore" hint="Direct access to live features" />
+        <div className="grid grid-cols-4 gap-2.5">
           {[
-            { to: "/map", l: "Map", e: "🗺️" },
-            { to: "/forecast", l: "Forecast", e: "📅" },
-            { to: "/alerts", l: "Alerts", e: "⚠️" },
-            { to: "/profile", l: "Prefs", e: "⚙️" },
+            { to: "/map", l: "Interactive Map", e: "🗺️" },
+            { to: "/forecast", l: "7-Day Forecast", e: "📅" },
+            { to: "/alerts", l: "Warnings & Alerts", e: "⚠️" },
+            { to: "/profile", l: "Settings", e: "⚙️" },
           ].map((q) => (
-            <Link key={q.l} to={q.to} className="card-surface press flex flex-col items-center gap-1.5 py-3">
-              <span className="text-xl">{q.e}</span>
-              <span className="text-[11px] font-bold">{q.l}</span>
+            <Link
+              key={q.l}
+              to={q.to}
+              className="card-surface press flex flex-col items-center gap-1.5 py-3.5 hover:border-primary/40 transition-all hover:shadow-md"
+            >
+              <span className="text-2xl">{q.e}</span>
+              <span className="text-[11.5px] font-bold text-foreground text-center">{q.l}</span>
             </Link>
           ))}
         </div>
       </div>
+
       <TrustNote />
+
+      {/* Interactive City Search Modal */}
+      <CitySearchModal
+        isOpen={cityModalOpen}
+        onClose={() => setCityModalOpen(false)}
+        title="Select Weather Station"
+      />
     </div>
   );
 }
 
-function Card({ title, hint, to, children }: { title: string; hint?: string; to?: "/alerts" | "/forecast" | "/map"; children: React.ReactNode }) {
+function Card({
+  title,
+  hint,
+  to,
+  className = "",
+  children,
+}: {
+  title: string;
+  hint?: string;
+  to?: "/alerts" | "/forecast" | "/map";
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="card-surface p-4">
+    <section className={`card-surface p-4 hover:border-primary/25 transition-all shadow-card hover:shadow-md ${className}`}>
       <div className="mb-3 flex items-start justify-between">
         <div>
-          <h2 className="text-[15px] font-bold">{title}</h2>
+          <h2 className="text-[15px] font-bold text-foreground">{title}</h2>
           {hint && (
             <p className="flex items-center gap-1 text-[10.5px] font-medium text-primary">
               <Sparkles className="h-2.5 w-2.5" /> {hint}
@@ -353,7 +481,7 @@ function Card({ title, hint, to, children }: { title: string; hint?: string; to?
           )}
         </div>
         {to && (
-          <Link to={to} className="flex items-center text-[11.5px] font-bold text-primary">
+          <Link to={to} className="flex items-center text-[11.5px] font-bold text-primary hover:underline">
             See all <ChevronRight className="h-3.5 w-3.5" />
           </Link>
         )}

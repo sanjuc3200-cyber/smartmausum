@@ -203,7 +203,15 @@
   background: var(--color-card);
   border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-card);
-  border: 1px solid oklch(1 0 0 / 0.8);
+  border: 1px solid oklch(0.88 0.02 245 / 0.8);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.25s ease;
+}
+@utility hover-lift {
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 34px -12px oklch(0.35 0.08 255 / 0.35);
+  }
 }
 @utility press {
   transition: transform 0.15s ease, box-shadow 0.15s ease;

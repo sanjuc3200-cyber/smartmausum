@@ -10,6 +10,8 @@ export type Interest =
   | "air"
   | "severe";
 
+export type TempUnit = "C" | "F";
+
 export interface Prefs {
   onboarded: boolean;
   name: string;
@@ -18,6 +20,21 @@ export interface Prefs {
   interests: Interest[];
   destinationId: string;
   notifications: { severe: boolean; daily: boolean; rain: boolean; agri: boolean };
+  tempUnit: TempUnit;
+}
+
+export function formatTemp(celsius: number, unit: TempUnit = "C"): string {
+  if (unit === "F") {
+    return `${Math.round((celsius * 9) / 5 + 32)}°`;
+  }
+  return `${Math.round(celsius)}°`;
+}
+
+export function formatTempValue(celsius: number, unit: TempUnit = "C"): number {
+  if (unit === "F") {
+    return Math.round((celsius * 9) / 5 + 32);
+  }
+  return Math.round(celsius);
 }
 
 export const PERSONAS: { id: Persona; label: string; emoji: string; blurb: string }[] = [
@@ -45,13 +62,14 @@ export const PERSONA_DEFAULT_INTERESTS: Record<Persona, Interest[]> = {
 };
 
 const DEFAULT_PREFS: Prefs = {
-  onboarded: false,
-  name: "",
+  onboarded: true,
+  name: "Vandana",
   cityId: "hyderabad",
   persona: "general",
   interests: ["daily", "temperature", "severe"],
   destinationId: "chennai",
   notifications: { severe: true, daily: true, rain: true, agri: false },
+  tempUnit: "C",
 };
 
 const KEY = "mausam-prefs-v1";

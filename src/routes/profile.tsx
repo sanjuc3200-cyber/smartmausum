@@ -92,6 +92,34 @@ function ProfilePage() {
           </div>
         </section>
 
+        {/* Temperature Unit */}
+        <section className="card-surface p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-[14px] font-bold">Temperature Unit</h2>
+              <p className="text-[11px] text-muted-foreground">Select Celsius or Fahrenheit across all dashboards</p>
+            </div>
+            <div className="flex rounded-xl bg-secondary p-1 border border-border/60 self-start sm:self-auto">
+              <button
+                onClick={() => update({ tempUnit: "C" })}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  prefs.tempUnit !== "F" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                °C (Celsius)
+              </button>
+              <button
+                onClick={() => update({ tempUnit: "F" })}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
+                  prefs.tempUnit === "F" ? "bg-card text-primary shadow-xs" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                °F (Fahrenheit)
+              </button>
+            </div>
+          </div>
+        </section>
+
         {/* Persona */}
         <section className="card-surface p-4">
           <h2 className="text-[14px] font-bold">I am a…</h2>
