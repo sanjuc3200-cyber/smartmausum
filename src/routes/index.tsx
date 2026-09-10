@@ -29,8 +29,10 @@ import {
   hourlyFor,
   sortedAlerts,
   LEVEL_META,
+  type Condition,
 } from "@/lib/weather-data";
 import { WeatherIcon, heroGradientFor } from "@/components/WeatherIcon";
+import { WeatherBackdrop } from "@/components/weather/WeatherBackdrop";
 import { AlertCard, DailyList, HourlyStrip, SectionTitle, StatTile, TrustNote } from "@/components/weather/Widgets";
 import { CitySearchModal } from "@/components/weather/CitySearchModal";
 
@@ -58,6 +60,7 @@ function HomePage() {
   const apiStatus = getApiStatus();
   const [cityModalOpen, setCityModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [previewCondition, setPreviewCondition] = useState<Condition | null>(null);
 
   const city = getCity(prefs.cityId);
   const dest = getCity(prefs.destinationId);
@@ -66,7 +69,8 @@ function HomePage() {
   const cityAlerts = alertsForCity(city.id);
   const globalAlerts = sortedAlerts().filter((a) => a.cityId !== city.id).slice(0, 3);
   const aqi = aqiLabel(city.aqi);
-  const hero = heroGradientFor(city.condition);
+  const activeCondition = previewCondition ?? city.condition;
+  const hero = heroGradientFor(activeCondition);
   const nextRain = hourly.find((h) => h.rainProb >= 60);
 
   const handleRefresh = () => {
@@ -188,38 +192,92 @@ function HomePage() {
             </div>
           </div>
 
-          {/* Today's Synoptic Summary Glass Card */}
-          <div className="lg:col-span-6 glass relative rounded-3xl p-5 md:p-6 shadow-xl border border-white/20">
-            <div className="flex items-center justify-between">
-              <p className="text-[11.5px] font-bold uppercase tracking-wider text-on-hero-muted">Today's Meteorological Brief</p>
-              <span className="text-[11.5px] text-on-hero-muted font-semibold">{city.name} Observational Station</span>
-            </div>
-            <p className="mt-2 text-[14px] md:text-[14.5px] font-medium leading-relaxed">{city.summary}</p>
+          {/* Today's Synoptic Daily Summary Card with Atmospheric Animated Backdrop */}
+          <div className="lg:col-span-6 glass relative rounded-3xl p-5 md:p-6 shadow-xl border border-white/20 overflow-hidden group transition-all">
+            {/* Animated Weather Backdrop on Back Side */}
+            <WeatherBackdrop condition={activeCondition} />
 
-            {/* 4 Metric Capsules */}
-            <div className="mt-5 grid grid-cols-4 gap-2.5 text-center">
-              {[
-                { i: CloudRain, l: "Rain Chance", v: `${city.rainProb}%` },
-                { i: Droplets, l: "Humidity", v: `${city.humidity}%` },
-                { i: Wind, l: "Wind", v: `${city.wind} km/h` },
-                { i: Leaf, l: "AQI", v: `${city.aqi}` },
-              ].map((s) => (
-                <div key={s.l} className="rounded-2xl bg-on-hero/15 py-3 px-1.5 border border-on-hero/10">
-                  <s.i className="mx-auto h-4 w-4 text-on-hero-muted" />
-                  <p className="mt-1.5 font-display text-base font-extrabold leading-tight">{s.v}</p>
-                  <p className="text-[10px] text-on-hero-muted font-semibold mt-0.5">{s.l}</p>
+            {/* Foreground Content Container with Enhanced Contrast & Legibility */}
+            <div className="relative z-10">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse ring-2 ring-emerald-400/30" />
+                  <p className="text-[11.5px] font-bold uppercase tracking-wider text-on-hero">
+                    Daily Meteorological Summary
+                  </p>
                 </div>
-              ))}
-            </div>
 
-            {/* Sunrise & Sunset Meter */}
-            <div className="mt-4 flex items-center justify-between pt-3 border-t border-on-hero/15 text-[11.5px] font-medium text-on-hero-muted">
-              <span className="flex items-center gap-1.5">
-                <Sunrise className="h-4 w-4 text-sun" /> Sunrise: <strong className="text-on-hero font-bold">{city.sunrise}</strong>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Sunset className="h-4 w-4 text-level-severe" /> Sunset: <strong className="text-on-hero font-bold">{city.sunset}</strong>
-              </span>
+                {/* Quick Weather Animation Preview Switcher */}
+                <div className="flex items-center gap-1 rounded-full bg-black/25 backdrop-blur-md px-2 py-0.5 border border-white/15 shadow-xs">
+                  <span className="text-[9.5px] font-bold uppercase tracking-wider text-on-hero-muted mr-1 hidden sm:inline">
+                    Effects:
+                  </span>
+                  {[
+                    { id: "auto", label: "Auto", icon: "🌐", cond: null },
+                    { id: "rain", label: "Rain", icon: "🌧️", cond: "rain" as Condition },
+                    { id: "sunny", label: "Sunny", icon: "☀️", cond: "sunny" as Condition },
+                    { id: "haze", label: "Foggy", icon: "🌫️", cond: "haze" as Condition },
+                    { id: "storm", label: "Storm", icon: "⚡", cond: "storm" as Condition },
+                  ].map((tab) => {
+                    const isSelected = tab.cond === null ? previewCondition === null : previewCondition === tab.cond;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setPreviewCondition(tab.cond)}
+                        title={`Preview ${tab.label} animation`}
+                        className={`press px-2 py-0.5 rounded-full text-[10.5px] font-extrabold transition-all flex items-center gap-1 ${
+                          isSelected
+                            ? "bg-white/30 text-white shadow-xs scale-105"
+                            : "text-on-hero-muted hover:text-white hover:bg-white/10"
+                        }`}
+                      >
+                        <span>{tab.icon}</span>
+                        <span className="hidden xl:inline">{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="mt-2.5 flex items-center justify-between">
+                <p className="text-[11.5px] text-on-hero-muted font-semibold">
+                  {city.name} Observational Station · <span className="capitalize text-on-hero">{CONDITION_LABEL[activeCondition]} Atmosphere</span>
+                </p>
+              </div>
+
+              <p className="mt-2 text-[14px] md:text-[14.5px] font-medium leading-relaxed drop-shadow-xs text-on-hero">
+                {city.summary}
+              </p>
+
+              {/* 4 Metric Capsules */}
+              <div className="mt-5 grid grid-cols-4 gap-2.5 text-center">
+                {[
+                  { i: CloudRain, l: "Rain Chance", v: `${city.rainProb}%` },
+                  { i: Droplets, l: "Humidity", v: `${city.humidity}%` },
+                  { i: Wind, l: "Wind", v: `${city.wind} km/h` },
+                  { i: Leaf, l: "AQI", v: `${city.aqi}` },
+                ].map((s) => (
+                  <div
+                    key={s.l}
+                    className="rounded-2xl bg-black/20 backdrop-blur-md py-3 px-1.5 border border-white/15 shadow-xs transition-all hover:bg-black/30 hover:scale-[1.02]"
+                  >
+                    <s.i className="mx-auto h-4 w-4 text-on-hero-muted" />
+                    <p className="mt-1.5 font-display text-base font-extrabold leading-tight text-on-hero">{s.v}</p>
+                    <p className="text-[10px] text-on-hero-muted font-semibold mt-0.5">{s.l}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Sunrise & Sunset Meter */}
+              <div className="mt-4 flex items-center justify-between pt-3 border-t border-on-hero/15 text-[11.5px] font-medium text-on-hero-muted">
+                <span className="flex items-center gap-1.5">
+                  <Sunrise className="h-4 w-4 text-sun" /> Sunrise: <strong className="text-on-hero font-bold">{city.sunrise}</strong>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Sunset className="h-4 w-4 text-level-severe" /> Sunset: <strong className="text-on-hero font-bold">{city.sunset}</strong>
+                </span>
+              </div>
             </div>
           </div>
         </div>
