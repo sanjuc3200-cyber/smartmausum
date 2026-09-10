@@ -275,28 +275,32 @@
   position: relative;
 }
 .mausam-marker .pin {
-  display: flex; align-items: center; gap: 4px;
-  padding: 4px 8px 4px 5px;
+  display: flex; align-items: center; gap: 4.5px;
+  padding: 3.5px 8px 3.5px 6px;
   border-radius: 999px;
-  background: oklch(1 0 0 / 0.92);
+  background: rgba(255, 255, 255, 0.96);
   border: 1.5px solid var(--pin-color, var(--color-primary));
-  box-shadow: 0 6px 16px -6px oklch(0.3 0.1 255 / 0.5);
+  box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.22);
   font-family: var(--font-display);
-  font-size: 11px; font-weight: 700; color: var(--color-foreground);
+  font-size: 11px; font-weight: 800; color: #0f172a;
   white-space: nowrap;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .mausam-marker .dot {
-  width: 8px; height: 8px; border-radius: 999px;
+  width: 7px; height: 7px; border-radius: 999px;
   background: var(--pin-color, var(--color-primary));
+  box-shadow: 0 0 6px var(--pin-color, var(--color-primary));
 }
 .mausam-marker.selected .pin {
-  transform: scale(1.12);
+  transform: scale(1.14);
   background: var(--color-primary);
-  color: var(--color-primary-foreground);
-  border-color: var(--color-primary-foreground);
+  color: #ffffff;
+  border-color: #ffffff;
+  box-shadow: 0 0 16px 2px var(--pin-color, var(--color-primary));
 }
-.mausam-marker.selected .dot { background: var(--color-primary-foreground); }
+.mausam-marker.selected .dot { background: #ffffff; box-shadow: 0 0 8px #ffffff; }
 .mausam-marker .ring {
   position: absolute; inset: -6px; border-radius: 999px;
   border: 2px solid var(--pin-color, var(--color-primary));

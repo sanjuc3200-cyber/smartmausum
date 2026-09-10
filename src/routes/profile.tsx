@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
 import {
   ChevronDown,
   MapPin,
@@ -8,12 +9,19 @@ import {
   BellRing,
   CloudLightning,
   Settings2,
+  LogIn,
+  LogOut,
+  Phone,
+  Mail,
+  ShieldCheck,
+  UserCheck,
 } from "lucide-react";
 import { CITIES } from "@/lib/weather-data";
 import { INTERESTS, PERSONAS, PERSONA_DEFAULT_INTERESTS, usePrefs } from "@/lib/prefs";
 import { rankCards } from "@/lib/personalization";
 import { TrustNote } from "@/components/weather/Widgets";
 import { getApiStatus } from "@/lib/weather-api";
+import { AuthModal } from "@/components/auth/AuthModal";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -46,7 +54,19 @@ const CARD_NAMES: Record<string, string> = {
 };
 
 function ProfilePage() {
-  const { prefs, update, toggleInterest, reset } = usePrefs();
+  const { prefs, update, toggleInterest, reset, logout } = usePrefs();
+  const [authModalOpen, setAuthModalOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return new URLSearchParams(window.location.search).get("login") !== null;
+    }
+    return false;
+  });
+  const [authDefaultMode, setAuthDefaultMode] = useState<"phone" | "email">(() => {
+    if (typeof window !== "undefined") {
+      return new URLSearchParams(window.location.search).get("mode") === "email" ? "email" : "phone";
+    }
+    return "phone";
+  });
   const ranked = rankCards(prefs);
   const apiStatus = getApiStatus();
 
@@ -68,12 +88,125 @@ function ProfilePage() {
           </div>
         </div>
 
-        <Link
-          to="/"
-          className="press inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-sm hover:opacity-90 self-start sm:self-auto"
-        >
-          <span>View Dashboard</span> →
-        </Link>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          {prefs.auth?.isLoggedIn ? (
+            <button
+              onClick={() => {
+                setAuthDefaultMode(prefs.auth?.type || "phone");
+                setAuthModalOpen(true);
+              }}
+              className="press inline-flex items-center gap-2 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-4 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 transition-all shadow-xs"
+            >
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+              <span>{prefs.auth.identifier}</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setAuthDefaultMode("phone");
+                setAuthModalOpen(true);
+              }}
+              className="press inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-extrabold text-primary-foreground shadow-glow hover:opacity-95 transition-all"
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              <span>Log In</span>
+            </button>
+          )}
+
+          <Link
+            to="/"
+            className="press inline-flex items-center gap-1.5 rounded-full bg-secondary hover:bg-secondary/80 border border-border/80 px-4 py-2 text-xs font-bold text-foreground transition-all shadow-xs"
+          >
+            <span>Dashboard</span> →
+          </Link>
+        </div>
+      </div>
+
+      {/* ACCOUNT & AUTHENTICATION CARD */}
+      <div className="mt-6">
+        <section className="card-surface p-5 sm:p-6 shadow-card border border-primary/20 bg-gradient-to-br from-primary/5 via-transparent to-sky-500/5">
+          {prefs.auth?.isLoggedIn ? (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 shadow-xs">
+                  <UserCheck className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-foreground">{prefs.auth.name || prefs.name}</h2>
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10.5px] font-extrabold text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                      <ShieldCheck className="h-3 w-3 text-emerald-500" /> Verified Citizen Account
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Logged in via {prefs.auth.type === "phone" ? "Mobile Number" : "Email"}:{" "}
+                    <strong className="text-foreground font-mono">{prefs.auth.identifier}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setAuthDefaultMode(prefs.auth?.type || "phone");
+                    setAuthModalOpen(true);
+                  }}
+                  className="press px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/80 border border-border/70 text-xs font-bold text-foreground transition-all"
+                >
+                  Switch Account
+                </button>
+                <button
+                  onClick={logout}
+                  className="press flex items-center gap-1.5 px-4 py-2 rounded-xl bg-destructive/10 hover:bg-destructive/20 border border-destructive/20 text-xs font-bold text-destructive transition-all"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider mb-1">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Mausam Citizen Account</span>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-bold text-foreground">
+                    Sign In to Save Preferences & Sync Weather Alerts
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed max-w-2xl">
+                    Log in with your <strong>Mobile Number</strong> or <strong>Email Address</strong> to receive personalized severe storm bulletins, SMS nowcasting alerts, and cloud sync across your devices.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => {
+                    setAuthDefaultMode("phone");
+                    setAuthModalOpen(true);
+                  }}
+                  className="press flex items-center gap-2 rounded-2xl bg-primary px-4 py-2.5 text-xs font-extrabold text-primary-foreground shadow-glow hover:opacity-95 transition-all"
+                >
+                  <Phone className="h-4 w-4" />
+                  <span>Login with Mobile Number</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setAuthDefaultMode("email");
+                    setAuthModalOpen(true);
+                  }}
+                  className="press flex items-center gap-2 rounded-2xl bg-card hover:bg-secondary/80 border border-border px-4 py-2.5 text-xs font-bold text-foreground transition-all shadow-xs"
+                >
+                  <Mail className="h-4 w-4 text-primary" />
+                  <span>Login with Email Address</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
 
       {/* 2-Column Desktop Grid (Left: Identity & Units / Right: Interests & API) */}
@@ -311,6 +444,12 @@ function ProfilePage() {
       </div>
 
       <TrustNote />
+
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        defaultMode={authDefaultMode}
+      />
     </div>
   );
 }

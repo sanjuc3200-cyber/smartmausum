@@ -12,6 +12,14 @@ export type Interest =
 
 export type TempUnit = "C" | "F";
 
+export interface UserAuth {
+  isLoggedIn: boolean;
+  type?: "phone" | "email";
+  identifier?: string;
+  name?: string;
+  loginTime?: string;
+}
+
 export interface Prefs {
   onboarded: boolean;
   name: string;
@@ -21,6 +29,7 @@ export interface Prefs {
   destinationId: string;
   notifications: { severe: boolean; daily: boolean; rain: boolean; agri: boolean };
   tempUnit: TempUnit;
+  auth?: UserAuth;
 }
 
 export function formatTemp(celsius: number, unit: TempUnit = "C"): string {
@@ -70,6 +79,9 @@ const DEFAULT_PREFS: Prefs = {
   destinationId: "chennai",
   notifications: { severe: true, daily: true, rain: true, agri: false },
   tempUnit: "C",
+  auth: {
+    isLoggedIn: false,
+  },
 };
 
 const KEY = "mausam-prefs-v1";
@@ -80,6 +92,8 @@ interface Ctx {
   update: (patch: Partial<Prefs>) => void;
   toggleInterest: (i: Interest) => void;
   reset: () => void;
+  login: (authData: { type: "phone" | "email"; identifier: string; name?: string }) => void;
+  logout: () => void;
 }
 
 const PrefsContext = createContext<Ctx | null>(null);
@@ -111,7 +125,33 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   );
   const reset = useCallback(() => setPrefs(DEFAULT_PREFS), []);
 
-  const value = useMemo(() => ({ prefs, hydrated, update, toggleInterest, reset }), [prefs, hydrated, update, toggleInterest, reset]);
+  const login = useCallback((authData: { type: "phone" | "email"; identifier: string; name?: string }) => {
+    setPrefs((p) => ({
+      ...p,
+      auth: {
+        isLoggedIn: true,
+        type: authData.type,
+        identifier: authData.identifier,
+        name: authData.name || p.name,
+        loginTime: new Date().toISOString(),
+      },
+      name: authData.name || p.name,
+    }));
+  }, []);
+
+  const logout = useCallback(() => {
+    setPrefs((p) => ({
+      ...p,
+      auth: {
+        isLoggedIn: false,
+      },
+    }));
+  }, []);
+
+  const value = useMemo(
+    () => ({ prefs, hydrated, update, toggleInterest, reset, login, logout }),
+    [prefs, hydrated, update, toggleInterest, reset, login, logout],
+  );
   return <PrefsContext.Provider value={value}>{children}</PrefsContext.Provider>;
 }
 

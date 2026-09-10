@@ -97,6 +97,9 @@ export function AppShell({ children }: { children: ReactNode }) {
                         {severeCount}
                       </span>
                     )}
+                    {to === "/profile" && prefs.auth?.isLoggedIn && (
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-background" title={`Signed in as ${prefs.auth.identifier}`} />
+                    )}
                   </Link>
                 ))}
               </nav>
