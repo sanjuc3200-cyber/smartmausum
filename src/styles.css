@@ -309,6 +309,56 @@
   animation: pulse-ring 1.8s ease-out infinite;
 }
 
+/* Compact Modern Weather Location Marker */
+.mausam-weather-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  cursor: pointer;
+  filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.18));
+}
+.mausam-weather-pin .pin-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px 3px 6px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  color: #0f172a;
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.mausam-weather-pin .pin-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+.mausam-weather-pin .pin-title {
+  max-width: 125px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #0f172a;
+}
+.mausam-weather-pin .pin-temp {
+  font-weight: 800;
+  color: #0284c7;
+  padding-left: 2px;
+}
+.mausam-weather-pin .pin-needle {
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #ffffff;
+  margin-top: -1px;
+}
+
 /* ---------- Weather Background Animations ---------- */
 @keyframes rain-fall {
   0% {

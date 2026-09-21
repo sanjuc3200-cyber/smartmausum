@@ -3,9 +3,9 @@ import type { Condition } from "@/lib/weather-data";
 
 interface WeatherBackdropProps {
   condition: Condition;
-  isNight?: boolean;
-  className?: string;
-  intensity?: "subtle" | "normal" | "vibrant";
+  isNight?: boolean | undefined;
+  className?: string | undefined;
+  intensity?: ("subtle" | "normal" | "vibrant") | undefined;
 }
 
 // Generate deterministic particles for rain

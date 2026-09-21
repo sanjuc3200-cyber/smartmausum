@@ -15,16 +15,16 @@ export type TempUnit = "C" | "F";
 
 export interface UserAuth {
   isLoggedIn: boolean;
-  type?: "phone" | "email";
-  identifier?: string;
-  name?: string;
-  loginTime?: string;
+  type?: "phone" | "email" | undefined;
+  identifier?: string | undefined;
+  name?: string | undefined;
+  loginTime?: string | undefined;
 }
 
 export interface SelectedLocation {
   id: string;
   name: string;
-  state?: string;
+  state?: string | undefined;
   country: string;
   lat: number;
   lng: number;
@@ -111,7 +111,7 @@ interface Ctx {
   update: (patch: Partial<Prefs>) => void;
   toggleInterest: (i: Interest) => void;
   reset: () => void;
-  login: (authData: { type: "phone" | "email"; identifier: string; name?: string }) => void;
+  login: (authData: { type: "phone" | "email"; identifier: string; name?: string | undefined }) => void;
   logout: () => void;
 }
 
@@ -178,7 +178,7 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   );
   const reset = useCallback(() => setPrefs(DEFAULT_PREFS), []);
 
-  const login = useCallback((authData: { type: "phone" | "email"; identifier: string; name?: string }) => {
+  const login = useCallback((authData: { type: "phone" | "email"; identifier: string; name?: string | undefined }) => {
     setPrefs((p) => ({
       ...p,
       auth: {

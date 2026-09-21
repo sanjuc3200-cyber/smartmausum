@@ -85,6 +85,7 @@ export function AuthModal({ isOpen, onClose, defaultMode = "phone" }: AuthModalP
       const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
       return () => clearTimeout(t);
     }
+    return undefined;
   }, [countdown, phoneStep, emailStep]);
 
   if (!isOpen) return null;

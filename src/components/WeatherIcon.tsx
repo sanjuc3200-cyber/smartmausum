@@ -19,9 +19,9 @@ export function WeatherIcon({
   inherit = false,
 }: {
   condition: Condition;
-  isNight?: boolean;
-  className?: string;
-  inherit?: boolean;
+  isNight?: boolean | undefined;
+  className?: string | undefined;
+  inherit?: boolean | undefined;
 }) {
   if (isNight && condition === "sunny") {
     return <Moon className={`${className} ${inherit ? "" : "text-sky-200"}`} strokeWidth={1.9} aria-label="Clear night" />;

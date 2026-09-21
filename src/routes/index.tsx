@@ -18,7 +18,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { usePrefs, formatTemp, formatTempValue } from "@/lib/prefs";
-import { getApiStatus, useCityWeather, useLocationWeather } from "@/lib/weather-api";
+import { getApiStatus, useCityWeather, useLocationWeather, useLocationForecast } from "@/lib/weather-api";
 import { personaLabel } from "@/lib/personalization";
 import {
   CONDITION_LABEL,
@@ -62,13 +62,14 @@ function HomePage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [previewCondition, setPreviewCondition] = useState<Condition | null>(null);
 
-  const { data: liveCity, refetch } = useLocationWeather(prefs.activeLocation);
+  const { data: liveCity, isFetching, isLoading, refetch } = useLocationWeather(prefs.activeLocation);
+  const { data: liveForecast, isFetching: isForecastFetching, refetch: refetchForecast } = useLocationForecast(prefs.activeLocation);
   const { data: liveDest } = useCityWeather(prefs.destinationId);
 
   const city = liveCity ?? getCity(prefs.cityId);
   const dest = liveDest ?? getCity(prefs.destinationId);
-  const hourly = useMemo(() => hourlyFor(city), [city]);
-  const daily = useMemo(() => dailyFor(city), [city]);
+  const hourly = useMemo(() => liveForecast?.hourly ?? hourlyFor(city), [liveForecast, city]);
+  const daily = useMemo(() => liveForecast?.daily ?? dailyFor(city), [liveForecast, city]);
   const cityAlerts = alertsForCity(city.id);
   const globalAlerts = sortedAlerts().filter((a) => a.cityId !== city.id).slice(0, 3);
   const aqi = aqiLabel(city.aqi);
@@ -79,7 +80,7 @@ function HomePage() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refetch();
+      await Promise.allSettled([refetch(), refetchForecast()]);
     } finally {
       setTimeout(() => {
         setIsRefreshing(false);
@@ -98,11 +99,21 @@ function HomePage() {
         {/* Top Header Bar inside Hero */}
         <div className="relative flex flex-wrap items-center justify-between gap-3 border-b border-on-hero/15 pb-4">
           <div className="flex flex-wrap items-center gap-3">
-            <p className="text-[13px] font-semibold text-on-hero flex items-center gap-2">
+            <p className="text-[13px] font-semibold text-on-hero flex flex-wrap items-center gap-2">
               <span>{greeting()}{prefs.name ? `, ${prefs.name}` : ""} 👋</span>
               <span className="inline-flex items-center rounded-full bg-on-hero/20 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-on-hero">
                 {apiStatus.isLive ? "🟢 Live Radar" : "⚡ Official IMD"}
               </span>
+              {city.observationTimeFormatted && (
+                <span className="inline-flex items-center rounded-full bg-on-hero/15 px-2.5 py-0.5 text-[10px] font-mono font-bold tracking-tight text-on-hero" title="OpenWeather observation time in local timezone">
+                  Observed: {city.observationTimeFormatted}
+                </span>
+              )}
+              {isFetching && !isRefreshing && (
+                <span className="inline-flex items-center rounded-full bg-on-hero/20 px-2 py-0.5 text-[9.5px] font-bold text-on-hero animate-pulse">
+                  Updating…
+                </span>
+              )}
             </p>
 
             {/* Clickable City Switcher Button */}
@@ -195,14 +206,14 @@ function HomePage() {
             </div>
 
             <div className="animate-float shrink-0 pl-4">
-              <WeatherIcon condition={city.condition} isNight={city.isNight} className="h-28 w-28 md:h-36 md:w-36 text-on-hero drop-shadow-[0_14px_28px_rgba(0,0,0,0.35)]" inherit />
+              <WeatherIcon condition={city.condition} isNight={city.isNight ?? false} className="h-28 w-28 md:h-36 md:w-36 text-on-hero drop-shadow-[0_14px_28px_rgba(0,0,0,0.35)]" inherit />
             </div>
           </div>
 
           {/* Today's Synoptic Daily Summary Card with Atmospheric Animated Backdrop */}
           <div className="lg:col-span-6 glass relative rounded-3xl p-5 md:p-6 shadow-xl border border-white/20 overflow-hidden group transition-all">
             {/* Animated Weather Backdrop on Back Side */}
-            <WeatherBackdrop condition={activeCondition} isNight={city.isNight} />
+            <WeatherBackdrop condition={activeCondition} isNight={city.isNight ?? false} />
 
             {/* Foreground Content Container with Enhanced Contrast & Legibility */}
             <div className="relative z-10">

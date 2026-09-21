@@ -37,6 +37,9 @@ export interface City {
   sunset: string;
   alertLevel: AlertLevel;
   summary: string;
+  dt?: number; // Unix timestamp (seconds) of observation from API
+  timezoneOffset?: number; // Shift in seconds from UTC for the location
+  observationTimeFormatted?: string; // Formatted local observation time
 }
 
 export interface WeatherAlert {

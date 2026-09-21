@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, Droplets, Wind, MapPin, Sparkles } from "lucide-react";
 import { usePrefs, formatTemp } from "@/lib/prefs";
 import { CITIES, CONDITION_LABEL, dailyFor, getCity, hourlyFor, getAllCities } from "@/lib/weather-data";
-import { useCityWeather } from "@/lib/weather-api";
+import { useLocationWeather, useLocationForecast } from "@/lib/weather-api";
 import { WeatherIcon } from "@/components/WeatherIcon";
 import { DailyList, HourlyStrip, SectionTitle, TrustNote } from "@/components/weather/Widgets";
 
@@ -22,16 +22,36 @@ export const Route = createFileRoute("/forecast")({
 const POPULAR_CITIES = ["hyderabad", "delhi", "mumbai", "bengaluru", "chennai", "kolkata", "jaipur"];
 
 function ForecastPage() {
-  const { prefs } = usePrefs();
-  const [cityId, setCityId] = useState(prefs.cityId);
+  const { prefs, update } = usePrefs();
   const [tab, setTab] = useState<"hourly" | "daily">("hourly");
-  const { data: liveCity } = useCityWeather(cityId);
-  const city = liveCity ?? getCity(cityId);
-  const hourly = useMemo(() => hourlyFor(city), [city]);
-  const daily = useMemo(() => dailyFor(city), [city]);
+  const activeLoc = prefs.activeLocation;
+
+  const { data: liveCity } = useLocationWeather(activeLoc);
+  const { data: liveForecast } = useLocationForecast(activeLoc);
+
+  const city = liveCity ?? getCity(activeLoc.id);
+  const hourly = useMemo(() => liveForecast?.hourly ?? hourlyFor(city), [liveForecast, city]);
+  const daily = useMemo(() => liveForecast?.daily ?? dailyFor(city), [liveForecast, city]);
   const maxT = Math.max(...hourly.map((h) => h.temp));
   const minT = Math.min(...hourly.map((h) => h.temp));
   const allCities = useMemo(() => getAllCities(), []);
+
+  const handleSelectCity = (id: string) => {
+    const c = getCity(id);
+    if (c) {
+      update({
+        cityId: id,
+        activeLocation: {
+          id: c.id,
+          name: c.name,
+          state: c.state,
+          country: "IN",
+          lat: c.lat,
+          lng: c.lng,
+        },
+      });
+    }
+  };
 
   return (
     <div className="page-gradient min-h-dvh px-4 pt-[max(env(safe-area-inset-top),1rem)] max-w-6xl mx-auto pb-12">
@@ -45,11 +65,14 @@ function ForecastPage() {
         <div className="flex items-center gap-2">
           <label className="relative">
             <select
-              value={cityId}
-              onChange={(e) => setCityId(e.target.value)}
+              value={activeLoc.id}
+              onChange={(e) => handleSelectCity(e.target.value)}
               className="appearance-none rounded-full bg-card py-2 pl-3.5 pr-8 text-[12.5px] font-bold shadow-card border border-border/80 outline-none hover:border-primary/40 transition-colors cursor-pointer"
               aria-label="Choose city"
             >
+              {!allCities.some((c) => c.id === activeLoc.id) && (
+                <option value={activeLoc.id}>{activeLoc.name} ({activeLoc.state || "Custom"})</option>
+              )}
               {allCities.map((c) => (
                 <option key={c.id} value={c.id}>{c.name} ({c.state})</option>
               ))}
@@ -66,11 +89,11 @@ function ForecastPage() {
         </span>
         {POPULAR_CITIES.map((id) => {
           const c = getCity(id);
-          const isSelected = cityId === id;
+          const isSelected = activeLoc.id === id;
           return (
             <button
               key={id}
-              onClick={() => setCityId(id)}
+              onClick={() => handleSelectCity(id)}
               className={`shrink-0 rounded-full px-3 py-1 text-[11.5px] font-bold transition-all ${
                 isSelected
                   ? "bg-primary text-primary-foreground shadow-xs"
@@ -99,7 +122,7 @@ function ForecastPage() {
           </p>
         </div>
         <div className="animate-float">
-          <WeatherIcon condition={city.condition} className="h-16 w-16 text-primary drop-shadow-md" />
+          <WeatherIcon condition={city.condition} isNight={city.isNight ?? false} className="h-16 w-16 text-primary drop-shadow-md" />
         </div>
       </div>
 
