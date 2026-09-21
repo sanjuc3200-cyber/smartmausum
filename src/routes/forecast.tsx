@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { ChevronDown, Droplets, Wind, MapPin, Sparkles } from "lucide-react";
 import { usePrefs, formatTemp } from "@/lib/prefs";
-import { CITIES, CONDITION_LABEL, dailyFor, getCity, hourlyFor } from "@/lib/weather-data";
+import { CITIES, CONDITION_LABEL, dailyFor, getCity, hourlyFor, getAllCities } from "@/lib/weather-data";
+import { useCityWeather } from "@/lib/weather-api";
 import { WeatherIcon } from "@/components/WeatherIcon";
 import { DailyList, HourlyStrip, SectionTitle, TrustNote } from "@/components/weather/Widgets";
 
@@ -24,11 +25,13 @@ function ForecastPage() {
   const { prefs } = usePrefs();
   const [cityId, setCityId] = useState(prefs.cityId);
   const [tab, setTab] = useState<"hourly" | "daily">("hourly");
-  const city = getCity(cityId);
+  const { data: liveCity } = useCityWeather(cityId);
+  const city = liveCity ?? getCity(cityId);
   const hourly = useMemo(() => hourlyFor(city), [city]);
   const daily = useMemo(() => dailyFor(city), [city]);
   const maxT = Math.max(...hourly.map((h) => h.temp));
   const minT = Math.min(...hourly.map((h) => h.temp));
+  const allCities = useMemo(() => getAllCities(), []);
 
   return (
     <div className="page-gradient min-h-dvh px-4 pt-[max(env(safe-area-inset-top),1rem)] max-w-6xl mx-auto pb-12">
@@ -47,7 +50,7 @@ function ForecastPage() {
               className="appearance-none rounded-full bg-card py-2 pl-3.5 pr-8 text-[12.5px] font-bold shadow-card border border-border/80 outline-none hover:border-primary/40 transition-colors cursor-pointer"
               aria-label="Choose city"
             >
-              {CITIES.map((c) => (
+              {allCities.map((c) => (
                 <option key={c.id} value={c.id}>{c.name} ({c.state})</option>
               ))}
             </select>

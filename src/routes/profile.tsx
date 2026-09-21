@@ -16,7 +16,7 @@ import {
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
-import { CITIES } from "@/lib/weather-data";
+import { CITIES, getAllCities } from "@/lib/weather-data";
 import { INTERESTS, PERSONAS, PERSONA_DEFAULT_INTERESTS, usePrefs } from "@/lib/prefs";
 import { rankCards } from "@/lib/personalization";
 import { TrustNote } from "@/components/weather/Widgets";
@@ -477,7 +477,7 @@ function Select({
           onChange={(e) => onChange(e.target.value)}
           className="w-full appearance-none bg-transparent text-[13.5px] font-bold text-foreground outline-none pr-6 cursor-pointer"
         >
-          {CITIES.map((c) => (
+          {getAllCities().map((c) => (
             <option key={c.id} value={c.id}>
               {c.name} ({c.state})
             </option>

@@ -39,8 +39,14 @@ import {
   dailyFor,
   getCity,
   hourlyFor,
+  registerCustomCity,
   type City,
 } from "@/lib/weather-data";
+import {
+  fetchLiveWeatherByCoords,
+  searchLocations,
+  type GeocodedLocation,
+} from "@/lib/weather-api";
 import { WeatherIcon } from "@/components/WeatherIcon";
 import { AlertCard, DailyList, HourlyStrip, LevelBadge, SectionTitle, TrustNote } from "@/components/weather/Widgets";
 import type { BasemapType, MapLayer } from "@/components/map/LeafletMap";
@@ -100,7 +106,7 @@ const REGION_HOTSPOTS = [
 ];
 
 function MapPage() {
-  const { prefs } = usePrefs();
+  const { prefs, update } = usePrefs();
   const [selectedId, setSelectedId] = useState(prefs.cityId);
   const [layer, setLayer] = useState<ExtendedLayer>(() => {
     if (typeof window !== "undefined") {
@@ -223,14 +229,88 @@ function MapPage() {
     ? CITIES.filter((c) => (c.name + " " + c.state).toLowerCase().includes(query.toLowerCase())).slice(0, 5)
     : [];
 
-  const select = useCallback((id: string, fly = false) => {
-    setSelectedId(id);
-    if (fly) {
-      const c = getCity(id);
-      setFlyTarget([c.lat, c.lng]);
+  const [searchResults, setSearchResults] = useState<GeocodedLocation[]>([]);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
     }
-    setQuery("");
-  }, []);
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const data = await searchLocations(q);
+        setSearchResults(data);
+      } catch (err) {
+        console.error("Map geocoding search failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 280);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const selectGeocoded = useCallback(
+    async (loc: GeocodedLocation) => {
+      update({
+        cityId: loc.id,
+        activeLocation: {
+          id: loc.id,
+          name: loc.name,
+          state: loc.state,
+          country: loc.country,
+          lat: loc.lat,
+          lng: loc.lng,
+        },
+      });
+      setSelectedId(loc.id);
+      setFlyTarget([loc.lat, loc.lng]);
+      setQuery("");
+      setSearchResults([]);
+
+      try {
+        const live = await fetchLiveWeatherByCoords(
+          loc.lat,
+          loc.lng,
+          loc.name,
+          loc.state,
+          loc.id
+        );
+        registerCustomCity(live);
+        setLiveData((prev) => ({ ...prev, [loc.id]: live }));
+      } catch (e) {
+        console.error("Error fetching live weather for selected map coordinates:", e);
+      }
+    },
+    [update]
+  );
+
+  const select = useCallback(
+    (id: string, fly = false) => {
+      const c = getCity(id);
+      update({
+        cityId: id,
+        activeLocation: {
+          id: c.id,
+          name: c.name,
+          state: c.state,
+          country: "IN",
+          lat: c.lat,
+          lng: c.lng,
+        },
+      });
+      setSelectedId(id);
+      if (fly) {
+        setFlyTarget([c.lat, c.lng]);
+      }
+      setQuery("");
+      setSearchResults([]);
+    },
+    [update]
+  );
 
   const jumpToHotspot = (coords: [number, number], zoom: number) => {
     if (mapRef) {
@@ -261,6 +341,8 @@ function MapPage() {
               basemap={basemap}
               liveData={liveData}
               showMarkers={showMarkers}
+              activeLocation={prefs.activeLocation}
+              activeLocationTemp={liveData[selectedId]?.temp ?? city.temp}
             />
           </Suspense>
         </ClientOnly>
@@ -268,16 +350,20 @@ function MapPage() {
         {/* TOP BAR: Search & City Jump */}
         <div className="absolute left-3 right-3 top-3 z-[500] flex items-center gap-2">
           <div className="flex flex-1 items-center gap-2 rounded-2xl px-3.5 py-2 shadow-float backdrop-blur-xl border border-slate-200/90 bg-white/95 text-slate-800">
-            <Search className="h-4 w-4 text-slate-400" />
+            {isSearching ? (
+              <RefreshCw className="h-4 w-4 animate-spin text-primary shrink-0" />
+            ) : (
+              <Search className="h-4 w-4 text-slate-400 shrink-0" />
+            )}
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search Indian cities, radar stations, states…"
+              placeholder="Search any locality, district, city worldwide…"
               className="w-full bg-transparent text-[13px] font-semibold outline-none placeholder:text-slate-400 text-slate-800"
               aria-label="Search city or radar station"
             />
             {query && (
-              <button onClick={() => setQuery("")} aria-label="Clear search" className="text-slate-400 hover:text-slate-700">
+              <button onClick={() => { setQuery(""); setSearchResults([]); }} aria-label="Clear search" className="text-slate-400 hover:text-slate-700">
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -294,25 +380,30 @@ function MapPage() {
           </button>
         </div>
 
-        {/* Search Results Dropdown */}
-        {results.length > 0 && (
-          <div className="card-surface absolute left-3 right-3 top-14 z-[550] overflow-hidden rounded-2xl shadow-float border border-border/80 animate-fade-in max-w-md">
-            {results.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => select(c.id, true)}
-                className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-secondary/80 border-b border-border/40 last:border-none"
-              >
-                <WeatherIcon condition={c.condition} className="h-5 w-5" />
-                <span className="flex-1">
-                  <span className="block text-[13px] font-bold text-foreground">{c.name}</span>
-                  <span className="block text-[11px] text-muted-foreground">{c.state}</span>
-                </span>
-                <span className="font-display text-sm font-extrabold text-foreground">
-                  {formatTemp(liveData[c.id]?.temp ?? c.temp, prefs.tempUnit)}
-                </span>
-              </button>
-            ))}
+        {/* Geocoded Search Results Dropdown */}
+        {searchResults.length > 0 && (
+          <div className="card-surface absolute left-3 right-3 top-14 z-[550] overflow-hidden rounded-2xl shadow-float border border-border/80 animate-fade-in max-w-md max-h-72 overflow-y-auto">
+            {searchResults.map((loc) => {
+              const stateDisplay = loc.state ? `${loc.state}, ${loc.country}` : loc.country;
+              return (
+                <button
+                  key={loc.id}
+                  onClick={() => selectGeocoded(loc)}
+                  className="flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-secondary/80 border-b border-border/40 last:border-none"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <MapPin className="h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0">
+                      <span className="block text-[13px] font-bold text-foreground truncate">{loc.name}</span>
+                      <span className="block text-[11px] text-muted-foreground truncate">{stateDisplay}</span>
+                    </div>
+                  </div>
+                  <span className="font-mono text-[10px] text-muted-foreground shrink-0 bg-secondary/80 px-2 py-0.5 rounded-md">
+                    {loc.lat.toFixed(2)}°, {loc.lng.toFixed(2)}°
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -462,7 +553,14 @@ function MapPage() {
             <Minus className="h-4 w-4" />
           </button>
           <button
-            onClick={() => select(prefs.cityId, true)}
+            onClick={() => {
+              if (prefs.activeLocation) {
+                setSelectedId(prefs.activeLocation.id);
+                setFlyTarget([prefs.activeLocation.lat, prefs.activeLocation.lng]);
+              } else {
+                select(prefs.cityId, true);
+              }
+            }}
             aria-label="Center on my location"
             title="Center on My City"
             className="press flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-glow"
@@ -866,7 +964,7 @@ function MapPage() {
               <Sparkles className="h-3.5 w-3.5 text-primary" />
               <span>Live Doppler & Open-Meteo Synced</span>
             </span>
-            <span className="font-mono text-[10px]">
+            <span className="font-mono text-[10px]" suppressHydrationWarning>
               {lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </span>
           </div>

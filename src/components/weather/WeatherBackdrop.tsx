@@ -3,6 +3,7 @@ import type { Condition } from "@/lib/weather-data";
 
 interface WeatherBackdropProps {
   condition: Condition;
+  isNight?: boolean;
   className?: string;
   intensity?: "subtle" | "normal" | "vibrant";
 }
@@ -35,11 +36,36 @@ const SUN_MOTES = Array.from({ length: 8 }, (_, i) => ({
   delay: i * 0.6,
 }));
 
-export function WeatherBackdrop({ condition, className = "", intensity = "normal" }: WeatherBackdropProps) {
+const SNOW_FLAKES = Array.from({ length: 28 }, (_, i) => {
+  const left = (i * 3.6 + (i % 4) * 1.8) % 96 + 2;
+  const size = 3 + ((i * 7) % 5); // 3px to 8px
+  const duration = 2.8 + ((i * 13) % 7) * 0.35; // 2.8s to 5.2s
+  const delay = ((i * 19) % 11) * 0.22;
+  const opacity = 0.45 + ((i * 5) % 5) * 0.12;
+  return { id: i, left, size, duration, delay, opacity };
+});
+
+const NIGHT_STARS = Array.from({ length: 20 }, (_, i) => ({
+  id: i,
+  left: (i * 5.3 + 4) % 94 + 3,
+  top: (i * 6.7 + 7) % 70 + 5,
+  size: 1.5 + (i % 3) * 1.2,
+  duration: 2 + (i % 4) * 0.8,
+  delay: (i * 0.45) % 2.5,
+  opacity: 0.35 + (i % 4) * 0.18,
+}));
+
+export function WeatherBackdrop({
+  condition,
+  isNight = false,
+  className = "",
+  intensity = "normal",
+}: WeatherBackdropProps) {
   // Normalize weather type
   const isRain = condition === "rain" || condition === "heavy-rain";
   const isStorm = condition === "storm";
   const isSunny = condition === "sunny";
+  const isSnow = condition === "snow";
   const isFoggy = condition === "haze";
   const isCloudy = condition === "cloudy" || condition === "partly";
   const isPartly = condition === "partly";
@@ -139,8 +165,37 @@ export function WeatherBackdrop({ condition, className = "", intensity = "normal
         </div>
       )}
 
-      {/* -------------------- 3. SUNNY & WARMTH ANIMATION -------------------- */}
-      {isSunny && (
+      {/* -------------------- 3a. CLEAR NIGHT SKY ANIMATION -------------------- */}
+      {isSunny && isNight && (
+        <div className="absolute inset-0">
+          {/* Deep Indigo/Navy Atmospheric Base */}
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/45 via-slate-900/35 to-blue-950/45" />
+
+          {/* Crescent Moon Glow in Top Corner */}
+          <div className="absolute -top-10 -right-10 h-44 w-44 rounded-full bg-gradient-to-br from-blue-200/25 via-sky-300/15 to-transparent blur-2xl animate-[sun-pulse_5s_ease-in-out_infinite]" />
+          <div className="absolute top-4 right-8 h-10 w-10 rounded-full border border-sky-200/40 bg-sky-100/10 backdrop-blur-xs shadow-[0_0_16px_rgba(186,230,253,0.4)]" />
+
+          {/* Twinkling Night Stars */}
+          {NIGHT_STARS.map((star) => (
+            <span
+              key={star.id}
+              className="absolute rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]"
+              style={{
+                left: `${star.left}%`,
+                top: `${star.top}%`,
+                width: `${star.size}px`,
+                height: `${star.size}px`,
+                animation: `star-twinkle ${star.duration}s ease-in-out infinite`,
+                animationDelay: `${star.delay}s`,
+                opacity: star.opacity,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* -------------------- 3b. SUNNY & WARMTH DAYTIME ANIMATION -------------------- */}
+      {isSunny && !isNight && (
         <div className="absolute inset-0">
           {/* Warm Solar Atmospheric Gradient */}
           <div className="absolute inset-0 bg-gradient-to-br from-amber-500/20 via-orange-400/15 to-transparent" />
@@ -273,8 +328,37 @@ export function WeatherBackdrop({ condition, className = "", intensity = "normal
         </div>
       )}
 
+      {/* -------------------- 6. SNOW ANIMATION -------------------- */}
+      {isSnow && (
+        <div className="absolute inset-0">
+          {/* Frosty Winter Glow */}
+          <div className="absolute inset-0 bg-gradient-to-b from-sky-950/25 via-indigo-900/20 to-sky-900/30" />
+
+          {/* Falling and Drifting Snowflakes */}
+          {SNOW_FLAKES.map((flake) => (
+            <span
+              key={flake.id}
+              className="absolute rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+              style={{
+                left: `${flake.left}%`,
+                top: `-15px`,
+                width: `${flake.size}px`,
+                height: `${flake.size}px`,
+                opacity: flake.opacity,
+                animation: `snow-fall ${flake.duration}s ease-in-out infinite`,
+                animationDelay: `${flake.delay}s`,
+              }}
+            />
+          ))}
+
+          {/* Ground Frost Sheen */}
+          <div className="absolute bottom-0 inset-x-0 h-10 bg-gradient-to-t from-white/20 to-transparent blur-xs" />
+        </div>
+      )}
+
       {/* Subtle Bottom Card Edge Sheen */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
     </div>
   );
 }
+

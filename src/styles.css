@@ -181,6 +181,7 @@
   --gradient-hero-rain: linear-gradient(160deg, oklch(0.3 0.08 262) 0%, oklch(0.42 0.1 252) 50%, oklch(0.55 0.09 235) 100%);
   --gradient-hero-storm: linear-gradient(160deg, oklch(0.25 0.06 270) 0%, oklch(0.36 0.09 262) 55%, oklch(0.48 0.1 245) 100%);
   --gradient-hero-sun: linear-gradient(160deg, oklch(0.5 0.16 248) 0%, oklch(0.66 0.14 232) 55%, oklch(0.84 0.1 90) 100%);
+  --gradient-hero-snow: linear-gradient(160deg, oklch(0.35 0.1 245) 0%, oklch(0.5 0.12 230) 50%, oklch(0.72 0.09 210) 100%);
   --gradient-page: radial-gradient(120% 60% at 50% -10%, oklch(0.9 0.05 235) 0%, oklch(0.972 0.01 240) 60%);
 }
 
@@ -221,6 +222,7 @@
 @utility hero-gradient-rain { background: var(--gradient-hero-rain); }
 @utility hero-gradient-storm { background: var(--gradient-hero-storm); }
 @utility hero-gradient-sun { background: var(--gradient-hero-sun); }
+@utility hero-gradient-snow { background: var(--gradient-hero-snow); }
 @utility page-gradient { background: var(--gradient-page); }
 @utility card-surface {
   background: var(--color-card);
@@ -391,4 +393,52 @@
     transform: translateX(-10%) translateY(0);
   }
 }
+
+@keyframes sun-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes sun-spin-rev {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes sun-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.08); opacity: 0.95; }
+}
+
+@keyframes lightning-flash {
+  0%, 88%, 93%, 97%, 100% { opacity: 0; }
+  89%, 95% { opacity: 0.9; }
+  90%, 96% { opacity: 0.2; }
+}
+
+@keyframes snow-fall {
+  0% {
+    transform: translateY(-15px) translateX(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  50% {
+    transform: translateY(140px) translateX(12px);
+    opacity: 0.9;
+  }
+  85% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(290px) translateX(-8px);
+    opacity: 0;
+  }
+}
+
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.25); }
+}
+
 

@@ -12,6 +12,7 @@ import {
   type City,
 } from "@/lib/weather-data";
 import type { RadarFrame } from "@/lib/radar-api";
+import type { SelectedLocation } from "@/lib/prefs";
 import WindStreamOverlay from "./WindStreamOverlay";
 import ThermalHeatOverlay from "./ThermalHeatOverlay";
 
@@ -26,6 +27,7 @@ const EMOJI: Record<City["condition"], string> = {
   "heavy-rain": "⛈️",
   storm: "🌩️",
   haze: "🌫️",
+  snow: "❄️",
 };
 
 function markerHtml(city: City, layer: MapLayer, selected: boolean, live?: Partial<City>) {
@@ -36,7 +38,7 @@ function markerHtml(city: City, layer: MapLayer, selected: boolean, live?: Parti
 
   let color = "var(--primary)";
   let value = `${currentTemp}°`;
-  let iconHtml = `<span style="font-size:12px;line-height:1">${EMOJI[city.condition]}</span>`;
+  let iconHtml = `<span style="font-size:12px;line-height:1">${EMOJI[city.condition] ?? "⛅"}</span>`;
 
   const normLayer = layer === "rainfall" ? "rain" : layer;
 
@@ -69,10 +71,12 @@ function markerHtml(city: City, layer: MapLayer, selected: boolean, live?: Parti
   </div>`;
 }
 
-function FlyTo({ target, zoom }: { target: [number, number] | null; zoom: number }) {
+function FlyTo({ target, zoom = 9 }: { target: [number, number] | null; zoom?: number }) {
   const map = useMap();
   useEffect(() => {
-    if (target) map.flyTo(target, Math.max(map.getZoom(), zoom), { duration: 0.9 });
+    if (target) {
+      map.flyTo(target, zoom, { duration: 1.0 });
+    }
   }, [target, zoom, map]);
   return null;
 }
@@ -95,6 +99,8 @@ export default function LeafletMap({
   basemap = "voyager",
   liveData = {},
   showMarkers = true,
+  activeLocation,
+  activeLocationTemp,
 }: {
   layer: MapLayer;
   selectedId: string;
@@ -107,8 +113,12 @@ export default function LeafletMap({
   basemap?: BasemapType;
   liveData?: Record<string, Partial<City>>;
   showMarkers?: boolean;
+  activeLocation?: SelectedLocation;
+  activeLocationTemp?: number;
 }) {
   const normLayer = layer === "rainfall" ? "rain" : layer;
+
+  const isPredefinedSelected = CITIES.some((c) => c.id === selectedId);
 
   const icons = useMemo(
     () =>
@@ -125,66 +135,70 @@ export default function LeafletMap({
     [normLayer, selectedId, liveData],
   );
 
-  const googleApiKey =
-    (import.meta.env as Record<string, string | undefined>)["VITE_GOOGLE_MAPS_API_KEY"] ||
-    "AIzaSyDKViJX7wDjJVLFIaAqpRA22mJwPBKc_h4";
+  const activeLocationIcon = useMemo(() => {
+    if (!activeLocation) return null;
+    const tempVal = activeLocationTemp !== undefined ? `${activeLocationTemp}°` : "";
+    const html = `<div class="mausam-marker selected" style="--pin-color:var(--color-primary)">
+      <span class="ring"></span>
+      <div class="pin" title="${activeLocation.name}"><span class="dot"></span><span style="font-size:12px;line-height:1">📍</span><span>${activeLocation.name}</span><span style="opacity:0.85;font-weight:800">${tempVal}</span></div>
+    </div>`;
+    return L.divIcon({
+      className: "leaflet-div-icon",
+      html,
+      iconSize: [0, 0],
+    });
+  }, [activeLocation, activeLocationTemp]);
 
   return (
     <MapContainer
-      center={[22.0, 79.5]}
-      zoom={4.7}
-      zoomSnap={0.2}
+      center={activeLocation ? [activeLocation.lat, activeLocation.lng] : [22.0, 79.5]}
+      zoom={activeLocation ? 8 : 5}
+      zoomSnap={0.5}
+      zoomDelta={0.5}
       zoomControl={false}
       attributionControl={true}
       className="h-full w-full bg-sky-50"
-      minZoom={4}
+      minZoom={2}
       maxZoom={19}
-      maxBounds={[
-        [2, 60],
-        [40, 102],
-      ]}
     >
-      {/* 1. Basemap Tiles (Bright Google Maps Roadmap with API Key) */}
+      {/* 1. Basemap Tiles (Google Maps Standard / Dark Matter / Google Maps Satellite) */}
       {basemap === "voyager" && (
         <TileLayer
-          attribution='Map data &copy; <a href="https://maps.google.com" target="_blank" rel="noreferrer">Google Maps</a>'
-          url={`https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}&key=${googleApiKey}`}
+          attribution='&copy; <a href="https://maps.google.com" target="_blank" rel="noreferrer">Google Maps</a>'
+          url="https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
           subdomains={["0", "1", "2", "3"]}
-          maxZoom={19}
+          maxZoom={20}
         />
       )}
 
       {basemap === "dark" && (
-        <>
-          <TileLayer
-            attribution='&copy; <a href="https://www.esri.com/">Esri</a> &copy; OSM'
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"
-          />
-          <TileLayer
-            url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
-            opacity={0.85}
-            zIndex={500}
-          />
-        </>
+        <TileLayer
+          attribution='&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          subdomains={["a", "b", "c", "d"]}
+          maxZoom={19}
+        />
       )}
 
       {basemap === "satellite" && (
         <TileLayer
           attribution='Imagery &copy; <a href="https://maps.google.com" target="_blank" rel="noreferrer">Google Maps</a>'
-          url={`https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&key=${googleApiKey}`}
+          url="https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
           subdomains={["0", "1", "2", "3"]}
-          maxZoom={19}
+          maxZoom={20}
         />
       )}
 
-      {/* 2. LIVE RAIN / RADAR LAYER (RainViewer real-time Doppler radar tile stream) */}
+      {/* 2. LIVE RAIN / RADAR LAYER (RainViewer Doppler radar capped at native zoom 12 to avoid 404s) */}
       {normLayer === "rain" && radarFrame && (
         <TileLayer
           key={`radar-${radarFrame.path}`}
-          url={`${radarHost}${radarFrame.path}/256/{z}/{x}/{y}/2/1_1.png`}
+          url={`${radarHost || "https://tilecache.rainviewer.com"}${radarFrame.path}/256/{z}/{x}/{y}/2/1_1.png`}
           opacity={layerOpacity}
           zIndex={300}
           tileSize={256}
+          maxNativeZoom={12}
+          maxZoom={19}
           attribution='Live Radar &copy; <a href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a>'
         />
       )}
@@ -193,10 +207,12 @@ export default function LeafletMap({
       {normLayer === "satellite" && radarFrame && (
         <TileLayer
           key={`sat-${radarFrame.path}`}
-          url={`${radarHost}${radarFrame.path}/256/{z}/{x}/{y}/0/0_0.png`}
+          url={`${radarHost || "https://tilecache.rainviewer.com"}${radarFrame.path}/256/{z}/{x}/{y}/0/0_0.png`}
           opacity={layerOpacity * 0.9}
           zIndex={300}
           tileSize={256}
+          maxNativeZoom={12}
+          maxZoom={19}
           attribution='Satellite &copy; <a href="https://www.rainviewer.com/" target="_blank" rel="noreferrer">RainViewer</a>'
         />
       )}
@@ -255,7 +271,16 @@ export default function LeafletMap({
           />
         ))}
 
-      <FlyTo target={flyTarget} zoom={6} />
+      {/* 8. Active Selected Custom Location Pin (shows when location is not in CITIES list) */}
+      {activeLocation && activeLocationIcon && !isPredefinedSelected && (
+        <Marker
+          position={[activeLocation.lat, activeLocation.lng]}
+          icon={activeLocationIcon}
+          zIndexOffset={2000}
+        />
+      )}
+
+      <FlyTo target={flyTarget} zoom={9} />
       <ZoomBridge onReady={onMapReady} />
     </MapContainer>
   );

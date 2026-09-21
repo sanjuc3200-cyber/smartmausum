@@ -3,7 +3,7 @@ import { Home, Map, CalendarDays, BellRing, UserRound, CloudSun, Search, Refresh
 import { useState, useEffect, type ReactNode } from "react";
 import { sortedAlerts, getCity } from "@/lib/weather-data";
 import { usePrefs, formatTemp } from "@/lib/prefs";
-import { getApiStatus } from "@/lib/weather-api";
+import { getApiStatus, useCityWeather, useLocationWeather } from "@/lib/weather-api";
 import { CitySearchModal } from "@/components/weather/CitySearchModal";
 
 const NAV = [
@@ -20,7 +20,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const extremeCount = sortedAlerts().filter((a) => a.level === "extreme").length;
   const severeCount = sortedAlerts().filter((a) => a.level === "severe" || a.level === "extreme").length;
   const { prefs, update } = usePrefs();
-  const currentCity = getCity(prefs.cityId);
+  const { data: liveCity } = useLocationWeather(prefs.activeLocation);
+  const currentCity = liveCity ?? getCity(prefs.cityId);
   const apiStatus = getApiStatus();
   const [cityModalOpen, setCityModalOpen] = useState(false);
 

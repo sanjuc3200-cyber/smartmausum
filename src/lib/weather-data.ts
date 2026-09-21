@@ -1,6 +1,6 @@
 import { addDays, addHours, format } from "date-fns";
 
-export type Condition = "sunny" | "partly" | "cloudy" | "rain" | "heavy-rain" | "storm" | "haze";
+export type Condition = "sunny" | "partly" | "cloudy" | "rain" | "heavy-rain" | "storm" | "haze" | "snow";
 export type AlertLevel = "normal" | "moderate" | "severe" | "extreme";
 export type AlertType =
   | "Heavy Rain"
@@ -19,6 +19,9 @@ export interface City {
   temp: number;
   feels: number;
   condition: Condition;
+  description?: string;
+  isNight?: boolean;
+  icon?: string;
   humidity: number;
   wind: number;
   windDir: string;
@@ -295,10 +298,129 @@ export const CONDITION_LABEL: Record<Condition, string> = {
   "heavy-rain": "Heavy Rain",
   storm: "Thunderstorm",
   haze: "Hazy",
+  snow: "Snow",
 };
 
+// In-memory + persistent custom geocoded cities store
+const customCitiesMap = new Map<string, City>();
+
+/**
+ * Register a newly geocoded custom city into memory and localStorage
+ */
+export function registerCustomCity(city: City): void {
+  customCitiesMap.set(city.id, city);
+  if (typeof window !== "undefined") {
+    try {
+      const existing = JSON.parse(window.localStorage.getItem("mausam_custom_cities") || "[]") as City[];
+      const filtered = existing.filter((c) => c.id !== city.id);
+      filtered.unshift(city);
+      window.localStorage.setItem("mausam_custom_cities", JSON.stringify(filtered.slice(0, 50)));
+    } catch {}
+  }
+}
+
+/**
+ * Retrieve saved custom locations from localStorage
+ */
+export function getCustomCities(): City[] {
+  if (typeof window !== "undefined") {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("mausam_custom_cities") || "[]") as City[];
+      stored.forEach((c) => customCitiesMap.set(c.id, c));
+      return stored;
+    } catch {}
+  }
+  return Array.from(customCitiesMap.values());
+}
+
+/**
+ * Get city by ID, checking predefined stations, registered custom cities, and localStorage
+ */
 export function getCity(id: string): City {
-  return CITIES.find((c) => c.id === id) ?? CITIES[0]!;
+  const found = CITIES.find((c) => c.id === id);
+  if (found) return found;
+
+  const inMemory = customCitiesMap.get(id);
+  if (inMemory) return inMemory;
+
+  if (typeof window !== "undefined") {
+    try {
+      const stored = JSON.parse(window.localStorage.getItem("mausam_custom_cities") || "[]") as City[];
+      const foundInStorage = stored.find((c) => c.id === id);
+      if (foundInStorage) {
+        customCitiesMap.set(id, foundInStorage);
+        return foundInStorage;
+      }
+    } catch {}
+  }
+
+  // Parse coordinates from geo_ ID if available (e.g. geo_17.9784_79.5941 or legacy geo_17_9784_79_5941)
+  if (id.startsWith("geo_")) {
+    const raw = id.replace("geo_", "");
+    let lat = NaN;
+    let lng = NaN;
+
+    if (raw.includes("_")) {
+      const parts = raw.split("_");
+      if (parts.length === 2) {
+        // Standard format: geo_17.9784_79.5941
+        lat = parseFloat(parts[0]!);
+        lng = parseFloat(parts[1]!);
+      } else if (parts.length === 4) {
+        // Legacy format where dots were replaced with underscores: geo_17_9784_79_5941
+        lat = parseFloat(`${parts[0]}.${parts[1]}`);
+        lng = parseFloat(`${parts[2]}.${parts[3]}`);
+      }
+    }
+
+    if (!isNaN(lat) && !isNaN(lng)) {
+      const dynamicCity: City = {
+        id,
+        name: "Selected Location",
+        state: "Custom Station",
+        lat,
+        lng,
+        temp: 24,
+        feels: 24,
+        condition: "partly",
+        humidity: 65,
+        wind: 10,
+        windDir: "N",
+        windDeg: 0,
+        rain: 0,
+        rainProb: 10,
+        cloud: 20,
+        aqi: 50,
+        uv: 5,
+        visibility: 10,
+        pressure: 1012,
+        sunrise: "06:00",
+        sunset: "18:30",
+        alertLevel: "normal",
+        summary: "Live observation for selected coordinates.",
+      };
+      customCitiesMap.set(id, dynamicCity);
+      return dynamicCity;
+    }
+  }
+
+  return CITIES[0]!;
+}
+
+/**
+ * Get all available cities (predefined + custom geocoded) for dropdown selectors
+ */
+export function getAllCities(): City[] {
+  const custom = getCustomCities();
+  const set = new Set<string>();
+  const all: City[] = [];
+  [...custom, ...CITIES].forEach((c) => {
+    if (!set.has(c.id)) {
+      set.add(c.id);
+      all.push(c);
+    }
+  });
+  return all;
 }
 
 export function alertsForCity(cityId: string) {

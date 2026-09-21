@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { getCity } from "./weather-data";
 
 export type Persona = "student" | "farmer" | "traveller" | "general";
 export type Interest =
@@ -20,10 +21,20 @@ export interface UserAuth {
   loginTime?: string;
 }
 
+export interface SelectedLocation {
+  id: string;
+  name: string;
+  state?: string;
+  country: string;
+  lat: number;
+  lng: number;
+}
+
 export interface Prefs {
   onboarded: boolean;
   name: string;
   cityId: string;
+  activeLocation: SelectedLocation;
   persona: Persona;
   interests: Interest[];
   destinationId: string;
@@ -74,6 +85,14 @@ const DEFAULT_PREFS: Prefs = {
   onboarded: true,
   name: "Vandana",
   cityId: "hyderabad",
+  activeLocation: {
+    id: "hyderabad",
+    name: "Hyderabad",
+    state: "Telangana",
+    country: "IN",
+    lat: 17.385,
+    lng: 78.4867,
+  },
   persona: "general",
   interests: ["daily", "temperature", "severe"],
   destinationId: "chennai",
@@ -105,7 +124,13 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(KEY);
-      if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (!parsed.activeLocation) {
+          parsed.activeLocation = DEFAULT_PREFS.activeLocation;
+        }
+        setPrefs({ ...DEFAULT_PREFS, ...parsed });
+      }
     } catch {}
     setHydrated(true);
   }, []);
@@ -114,7 +139,35 @@ export function PrefsProvider({ children }: { children: ReactNode }) {
     if (hydrated) window.localStorage.setItem(KEY, JSON.stringify(prefs));
   }, [prefs, hydrated]);
 
-  const update = useCallback((patch: Partial<Prefs>) => setPrefs((p) => ({ ...p, ...patch })), []);
+  const update = useCallback((patch: Partial<Prefs>) => {
+    setPrefs((p) => {
+      let nextActiveLoc = patch.activeLocation ?? p.activeLocation;
+      let nextCityId = patch.cityId ?? p.cityId;
+
+      if (patch.activeLocation && !patch.cityId) {
+        nextCityId = patch.activeLocation.id;
+      } else if (patch.cityId && !patch.activeLocation) {
+        const c = getCity(patch.cityId);
+        if (c) {
+          nextActiveLoc = {
+            id: c.id,
+            name: c.name,
+            state: c.state,
+            country: "IN",
+            lat: c.lat,
+            lng: c.lng,
+          };
+        }
+      }
+
+      return {
+        ...p,
+        ...patch,
+        cityId: nextCityId,
+        activeLocation: nextActiveLoc,
+      };
+    });
+  }, []);
   const toggleInterest = useCallback(
     (i: Interest) =>
       setPrefs((p) => ({

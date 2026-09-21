@@ -18,7 +18,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { usePrefs, formatTemp, formatTempValue } from "@/lib/prefs";
-import { getApiStatus } from "@/lib/weather-api";
+import { getApiStatus, useCityWeather, useLocationWeather } from "@/lib/weather-api";
 import { personaLabel } from "@/lib/personalization";
 import {
   CONDITION_LABEL,
@@ -62,22 +62,29 @@ function HomePage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [previewCondition, setPreviewCondition] = useState<Condition | null>(null);
 
-  const city = getCity(prefs.cityId);
-  const dest = getCity(prefs.destinationId);
+  const { data: liveCity, refetch } = useLocationWeather(prefs.activeLocation);
+  const { data: liveDest } = useCityWeather(prefs.destinationId);
+
+  const city = liveCity ?? getCity(prefs.cityId);
+  const dest = liveDest ?? getCity(prefs.destinationId);
   const hourly = useMemo(() => hourlyFor(city), [city]);
   const daily = useMemo(() => dailyFor(city), [city]);
   const cityAlerts = alertsForCity(city.id);
   const globalAlerts = sortedAlerts().filter((a) => a.cityId !== city.id).slice(0, 3);
   const aqi = aqiLabel(city.aqi);
   const activeCondition = previewCondition ?? city.condition;
-  const hero = heroGradientFor(activeCondition);
+  const hero = heroGradientFor(activeCondition, city.isNight);
   const nextRain = hourly.find((h) => h.rainProb >= 60);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
-    }, 600);
+    try {
+      await refetch();
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 600);
+    }
   };
 
   return (
@@ -169,7 +176,7 @@ function HomePage() {
               </div>
 
               <p className="mt-3 text-lg md:text-xl font-bold flex items-center gap-2">
-                <span>{CONDITION_LABEL[city.condition]}</span>
+                <span>{city.description || CONDITION_LABEL[city.condition]}</span>
                 {city.alertLevel !== "normal" && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-on-hero/25 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wide">
                     <ShieldAlert className="h-3.5 w-3.5" /> {city.alertLevel}
@@ -188,14 +195,14 @@ function HomePage() {
             </div>
 
             <div className="animate-float shrink-0 pl-4">
-              <WeatherIcon condition={city.condition} className="h-28 w-28 md:h-36 md:w-36 text-on-hero drop-shadow-[0_14px_28px_rgba(0,0,0,0.35)]" inherit />
+              <WeatherIcon condition={city.condition} isNight={city.isNight} className="h-28 w-28 md:h-36 md:w-36 text-on-hero drop-shadow-[0_14px_28px_rgba(0,0,0,0.35)]" inherit />
             </div>
           </div>
 
           {/* Today's Synoptic Daily Summary Card with Atmospheric Animated Backdrop */}
           <div className="lg:col-span-6 glass relative rounded-3xl p-5 md:p-6 shadow-xl border border-white/20 overflow-hidden group transition-all">
             {/* Animated Weather Backdrop on Back Side */}
-            <WeatherBackdrop condition={activeCondition} />
+            <WeatherBackdrop condition={activeCondition} isNight={city.isNight} />
 
             {/* Foreground Content Container with Enhanced Contrast & Legibility */}
             <div className="relative z-10">
